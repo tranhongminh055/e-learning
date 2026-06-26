@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <PropertyGroup>
+    <AssemblyName>StudentMonitor</AssemblyName>
+    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>True</UseWPF>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <PropertyGroup>
+    <LangVersion>15.0</LangVersion>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+    <CheckForOverflowUnderflow>False</CheckForOverflowUnderflow>
+  </PropertyGroup>
+  <PropertyGroup>
+    <RootNamespace />
+  </PropertyGroup>
+  <ItemGroup>
+    <None Remove="resources\styles.baml" />
+    <None Remove="mainwindow.baml" />
+    <None Remove="views\registerwindow.baml" />
+    <None Remove="views\loginwindow.baml" />
+    <None Remove="app.baml" />
+    <None Remove="views\studentwindow.baml" />
+    <EmbeddedResource Include="resources\styles.baml" LogicalName="resources/styles.baml" />
+    <EmbeddedResource Include="mainwindow.baml" LogicalName="mainwindow.baml" />
+    <EmbeddedResource Include="views\registerwindow.baml" LogicalName="views/registerwindow.baml" />
+    <EmbeddedResource Include="views\loginwindow.baml" LogicalName="views/loginwindow.baml" />
+    <EmbeddedResource Include="app.baml" LogicalName="app.baml" />
+    <EmbeddedResource Include="views\studentwindow.baml" LogicalName="views/studentwindow.baml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Microsoft.Web.WebView2.Wpf">
+      <HintPath>..\StudentMonitor\bin\Debug\net10.0-windows\Microsoft.Web.WebView2.Wpf.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Web.WebView2.Core">
+      <HintPath>..\StudentMonitor\bin\Debug\net10.0-windows\Microsoft.Web.WebView2.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\StudentMonitor\bin\Debug\net10.0-windows\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>

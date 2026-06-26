@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Student Camera</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+</head>
+<body>
+    <video id="localVideo" autoplay muted playsinline style="width:1px;height:1px;"></video>
+    <script>
+        const API_BASE = window.location.origin;
+        const params = new URLSearchParams(window.location.search);
+        const username = params.get('username') || 'unknown';
+
+        let localStream = null;
+        let peer = null;
+
+        async function start() {
+            try {
+                // Request camera access
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 320, height: 240, frameRate: 10 },
+                    audio: false
+                });
+                document.getElementById('localVideo').srcObject = localStream;
+                console.log('[StudentCamera] Camera stream acquired for', username);
+            } catch (err) {
+                console.error('[StudentCamera] Failed to get camera:', err);
+                
+                // Tạo một luồng video ảo bằng Canvas để báo không có camera (đảm bảo PeerJS luôn hoạt động)
+                const canvas = document.createElement('canvas');
+                canvas.width = 320;
+                canvas.height = 240;
+                const ctx = canvas.getContext('2d');
+                
+                setInterval(() => {
+                    ctx.fillStyle = '#2c3e50';
+                    ctx.fillRect(0, 0, 320, 240);
+                    ctx.fillStyle = '#e74c3c';
+                    ctx.font = '20px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Không có Camera', 160, 110);
+                    ctx.fillStyle = '#bdc3c7';
+                    ctx.font = '14px Arial';
+                    ctx.fillText(new Date().toLocaleTimeString(), 160, 140);
+                }, 1000);
+
+                localStream = canvas.captureStream(10);
+            }
+
+            // Create PeerJS peer
+            peer = new Peer();
+
+            peer.on('open', async (peerId) => {
+                console.log('[StudentCamera] Peer opened with ID:', peerId);
+
+                // Register this peer with the backend
+                try {
+                    const resp = await fetch(`${API_BASE}/api/monitor/register_peer`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            username: username,
+                            peer_id: peerId,
+                            type: 'camera'
+                        })
+                    });
+                    const data = await resp.json();
+                    console.log('[StudentCamera] Peer registered:', data);
+                } catch (err) {
+                    console.error('[StudentCamera] Failed to register peer:', err);
+                }
+            });
+
+            // Answer incoming calls from the instructor
+            peer.on('call', (call) => {
+                console.log('[StudentCamera] Incoming call from instructor');
+                if (localStream) {
+                    call.answer(localStream);
+                } else {
+                    // Answer with empty stream if no camera
+                    call.answer(new MediaStream());
+                }
+            });
+
+            peer.on('error', (err) => {
+                console.error('[StudentCamera] Peer error:', err);
+                // Try to reconnect after 5 seconds
+                setTimeout(() => {
+                    if (peer && peer.destroyed) {
+                        start();
+                    }
+                }, 5000);
+            });
+
+            peer.on('disconnected', () => {
+                console.log('[StudentCamera] Peer disconnected, reconnecting...');
+                if (peer && !peer.destroyed) {
+                    peer.reconnect();
+                }
+            });
+
+            // Keep-alive: re-register peer every 30 seconds to prevent being removed
+            setInterval(async () => {
+                if (peer && peer.id && !peer.destroyed) {
+                    try {
+                        await fetch(`${API_BASE}/api/monitor/register_peer`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                username: username,
+                                peer_id: peer.id,
+                                type: 'camera'
+                            })
+                        });
+                        console.log('[StudentCamera] Keep-alive ping sent');
+                    } catch (err) {
+                        console.error('[StudentCamera] Keep-alive failed:', err);
+                    }
+                }
+            }, 30000);
+        }
+
+        // Start immediately
+        start();
+    </script>
+</body>
+</html>

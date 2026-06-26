@@ -1,0 +1,2 @@
+Release/StudentMonitor.exe filter=lfs diff=lfs merge=lfs -text
+StudentMonitor/PublishOutput/StudentMonitor.exe filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Instructor Monitor</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .card:hover {
+            transform: scale(1.02);
+        }
+
+        .name {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #2c3e50;
+        }
+
+        .username {
+            color: #7f8c8d;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .streams-container {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .video-container {
+            flex: 1;
+            height: 180px;
+            background: #000;
+            border-radius: 4px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            position: relative;
+        }
+
+        .stream-label {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 2px 6px;
+            font-size: 11px;
+            border-radius: 4px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background: #2980b9;
+        }
+
+        @keyframes flashRed {
+            0% {
+                box-shadow: 0 0 15px rgba(231, 76, 60, 1);
+                border-color: #e74c3c;
+                background-color: #ffeaea;
+            }
+
+            50% {
+                box-shadow: 0 0 5px rgba(231, 76, 60, 0.3);
+                border-color: transparent;
+                background-color: white;
+            }
+
+            100% {
+                box-shadow: 0 0 15px rgba(231, 76, 60, 1);
+                border-color: #e74c3c;
+                background-color: #ffeaea;
+            }
+        }
+
+        .violating {
+            animation: flashRed 1s infinite;
+            border: 2px solid transparent;
+        }
+    </style>
+
+</head>
+
+<body>
+    <div class="header">
+        <div class="title">Giám sát tổng quan sinh viên</div>
+        <button class="btn" onclick="loadStudents()">Làm mới danh sách</button>
+    </div>
+
+    <div id="studentGrid" class="grid">
+        <!-- Students will be added here dynamically -->
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        const grid = document.getElementById('studentGrid');
+
+
+        async function loadStudents() {
+            try {
+                const response = await fetch(`${API_BASE}/api/monitor/active_students`);
+                const students = await response.json();
+
+                const currentUsernames = new Set(students.map(s => s.username));
+
+                if (students.length === 0) {
+                    grid.innerHTML = '<p style="color:#777; grid-column: 1 / -1;">Hiện chưa có sinh viên nào đang trong phiên thi.</p>';
+                    return;
+                } else if (grid.querySelector('p')) {
+                    grid.innerHTML = '';
+                }
+
+                students.forEach(student => {
+                    let card = document.getElementById(`card-${student.username}`);
+                    if (!card) {
+                        card = document.createElement('div');
+                        card.id = `card-${student.username}`;
+                        card.className = 'card';
+                        card.onclick = () => window.open(`${API_BASE}/instructor_view?username=${student.username}`, '_blank');
+
+                        const nameInfo = document.createElement('div');
+                        nameInfo.innerHTML = `<div class="name">${student.full_name}</div><div class="username">${student.username}</div>`;
+
+                        const streamsContainer = document.createElement('div');
+                        streamsContainer.className = 'streams-container';
+
+                        const screenContainer = document.createElement('div');
+                        screenContainer.className = 'video-container';
+                        screenContainer.innerHTML = '<div class="stream-label">Màn hình</div>';
+
+                        const screenImg = document.createElement('img');
+                        screenImg.src = `${API_BASE}/api/monitor/stream_screen?username=${student.username}`;
+                        screenContainer.appendChild(screenImg);
+
+                        streamsContainer.appendChild(screenContainer);
+
+                        card.appendChild(nameInfo);
+                        card.appendChild(streamsContainer);
+                        grid.appendChild(card);
+
+                    }
+
+                    if (student.is_violating) {
+                        card.classList.add('violating');
+                    } else {
+                        card.classList.remove('violating');
+                    }
+                });
+
+                Array.from(grid.children).forEach(child => {
+                    if (child.id && child.id.startsWith('card-')) {
+                        const username = child.id.replace('card-', '');
+                        if (!currentUsernames.has(username)) {
+                            child.remove();
+                        }
+                    }
+                });
+            } catch (err) {
+                console.error('Failed to load students:', err);
+            }
+        }
+
+        // Auto refresh students list every 2 seconds
+        setInterval(loadStudents, 2000);
+
+        loadStudents();
+    </script>
+</body>
+
+</html>
