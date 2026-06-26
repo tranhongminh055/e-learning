@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Instructor View - Detail</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .streams {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stream-box {
+            flex: 1;
+            min-width: 400px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .stream-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #2c3e50;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        .video-container {
+            width: 100%;
+            height: 400px;
+            background: #000;
+            border-radius: 4px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+    </style>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+        import { getDatabase, ref, onValue, get } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-database.js";
+
+        // Thay thông tin này bằng cấu hình Firebase của bạn
+        const firebaseConfig = {
+            apiKey: "AIzaSyAUUfwKLCFt0Ksp2Y6GLICl63eXspZ2YTs",
+            authDomain: "vibio-8391c.firebaseapp.com",
+            projectId: "vibio-8391c",
+            storageBucket: "vibio-8391c.firebasestorage.app",
+            messagingSenderId: "698117206135",
+            appId: "1:698117206135:web:adb4363661309b91c71672",
+            measurementId: "G-ND2LNGQHJ0",
+            databaseURL: "https://vibio-8391c-default-rtdb.firebaseio.com"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        window.db = db;
+        window.ref = ref;
+        window.onValue = onValue;
+        window.get = get;
+    </script>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title">Chi tiết giám sát: <span id="studentName">Đang tải...</span></div>
+        </div>
+
+        <div class="streams">
+
+            <div class="stream-box">
+                <div class="stream-title">Màn hình</div>
+                <div class="video-container" id="screenContainer">
+                    <span>Đang kết nối Màn hình...</span>
+                    <img id="screenImage" alt="Live Screen" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const username = urlParams.get('username');
+
+        document.getElementById('studentName').innerText = username || 'Không xác định';
+
+
+
+        const checkFirebase = setInterval(() => {
+            if (!username || !window.db) return;
+            clearInterval(checkFirebase);
+
+            // Connect to Screen streaming (base64 from Firebase)
+            const screenRef = window.ref(window.db, `screens/${username}/frame`);
+            window.onValue(screenRef, (snap) => {
+                if (snap.exists()) {
+                    document.getElementById('screenImage').src = "data:image/jpeg;base64," + snap.val();
+                    document.getElementById('screenContainer').querySelector('span').style.display = 'none';
+                }
+            });
+
+
+        }, 1000);
+
+
+    </script>
+</body>
+
+</html>

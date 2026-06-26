@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Điểm danh khuôn mặt AI</title>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #F0F2F5;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            font-size: 22px;
+            color: #1a73e8;
+            margin-bottom: 6px;
+        }
+        .header p {
+            font-size: 13px;
+            color: #666;
+        }
+        .status-bar {
+            background: #fff;
+            border-radius: 10px;
+            padding: 12px 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            min-width: 500px;
+            justify-content: center;
+        }
+        .status-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: #ccc;
+            animation: pulse 1.5s infinite;
+        }
+        .status-dot.loading { background: #f59e0b; }
+        .status-dot.ready { background: #22c55e; animation: none; }
+        .status-dot.error { background: #ef4444; animation: none; }
+        .status-dot.success { background: #22c55e; animation: none; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .camera-wrapper {
+            position: relative;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+            background: #000;
+            width: 640px;
+            height: 480px;
+        }
+        video {
+            width: 640px;
+            height: 480px;
+            object-fit: cover;
+            display: block;
+            transform: scaleX(-1);
+        }
+        canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 640px;
+            height: 480px;
+            transform: scaleX(-1);
+        }
+        .overlay-info {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            background: linear-gradient(transparent, rgba(0,0,0,0.7));
+            padding: 20px;
+            color: white;
+        }
+        .overlay-info .name {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .overlay-info .detail {
+            font-size: 13px;
+            opacity: 0.8;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+        }
+        .btn {
+            padding: 12px 28px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-primary { background: #1a73e8; color: white; }
+        .btn-success { background: #22c55e; color: white; }
+        .btn-register { background: #8b5cf6; color: white; }
+
+        .result-card {
+            margin-top: 16px;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            min-width: 500px;
+            display: none;
+        }
+        .result-card.show { display: block; }
+        .result-card h3 { font-size: 16px; margin-bottom: 10px; }
+        .result-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+        .result-row:last-child { border-bottom: none; }
+        .match-score {
+            font-weight: 700;
+            font-size: 28px;
+            text-align: center;
+            padding: 10px;
+        }
+        .match-score.high { color: #22c55e; }
+        .match-score.medium { color: #f59e0b; }
+        .match-score.low { color: #ef4444; }
+        .verdict {
+            text-align: center;
+            font-size: 16px;
+            font-weight: 600;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 8px;
+        }
+        .verdict.pass { background: #dcfce7; color: #166534; }
+        .verdict.fail { background: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔐 Hệ thống Điểm danh Khuôn mặt AI</h1>
+        <p>Sử dụng trí tuệ nhân tạo (Face Recognition) để xác thực danh tính sinh viên</p>
+    </div>
+
+    <div class="status-bar" id="statusBar">
+        <div class="status-dot loading" id="statusDot"></div>
+        <span id="statusText">Đang khởi tạo AI Engine...</span>
+    </div>
+
+    <div class="camera-wrapper">
+        <video id="video" autoplay muted playsinline></video>
+        <canvas id="overlay"></canvas>
+        <div class="overlay-info" id="overlayInfo" style="display:none;">
+            <div class="name" id="detectedName">-</div>
+            <div class="detail" id="detectedDetail">-</div>
+        </div>
+    </div>
+
+    <div class="btn-group">
+        <button class="btn btn-register" id="btnRegister" disabled onclick="registerFace()">📸 Đăng ký khuôn mặt</button>
+        <button class="btn btn-primary" id="btnAttendance" disabled onclick="checkAttendance()">✅ Điểm danh</button>
+    </div>
+
+    <div class="result-card" id="resultCard">
+        <h3>📊 Kết quả xác thực AI</h3>
+        <div class="match-score" id="matchScore">-</div>
+        <div class="result-row">
+            <span>Sinh viên:</span>
+            <strong id="resultUsername">-</strong>
+        </div>
+        <div class="result-row">
+            <span>Thời gian điểm danh:</span>
+            <strong id="resultTime">-</strong>
+        </div>
+        <div class="result-row">
+            <span>Phương thức:</span>
+            <strong>Face Recognition AI (128-d FaceNet)</strong>
+        </div>
+        <div class="verdict" id="verdict">-</div>
+    </div>
+
+    <script>
+        // Config from URL params
+        const params = new URLSearchParams(window.location.search);
+        const FIREBASE_DB = params.get('db') || '';
+        const FIREBASE_TOKEN = params.get('token') || '';
+        const USERNAME = params.get('username') || '';
+        const FULLNAME = params.get('fullname') || '';
+
+        const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+
+        let video, canvas, ctx;
+        let faceDetectionInterval;
+        let isModelLoaded = false;
+        let referenceDescriptor = null; // stored face descriptor (Float32Array)
+        let stopDetectionLoop = false; // flag to pause background detection
+
+        async function init() {
+            video = document.getElementById('video');
+            canvas = document.getElementById('overlay');
+            ctx = canvas.getContext('2d');
+
+            setStatus('loading', 'Đang tải mô hình AI nhận diện khuôn mặt...');
+
+            try {
+                // Let face-api use its default WebGL backend for hardware acceleration
+                // (CPU backend was causing timeouts on real machines)
+
+
+                // Load face-api models
+                await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+                
+                setStatus('loading', 'Đang kết nối webcam...');
+                
+                // Check available devices first
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(d => d.kind === 'videoinput');
+                
+                if (videoDevices.length === 0) {
+                    throw new Error("Không tìm thấy bất kỳ Camera nào được kết nối với máy tính.");
+                }
+
+                // Access camera
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: true
+                });
+                video.srcObject = stream;
+                
+                await new Promise(resolve => video.onloadedmetadata = resolve);
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+
+                // Try to load reference face from Firebase
+                await loadReferenceFace();
+
+                isModelLoaded = true;
+                document.getElementById('btnRegister').disabled = false;
+                document.getElementById('btnAttendance').disabled = false;
+
+                if (referenceDescriptor) {
+                    setStatus('ready', '✅ AI sẵn sàng — Khuôn mặt đã đăng ký. Nhấn "Điểm danh" để xác thực.');
+                } else {
+                    setStatus('ready', '⚠️ Chưa đăng ký khuôn mặt. Nhấn "Đăng ký khuôn mặt" trước.');
+                }
+
+                // Start continuous face detection overlay
+                startFaceDetection();
+
+            } catch (err) {
+                console.error(err);
+                setStatus('error', '❌ Lỗi: ' + err.message);
+            }
+        }
+
+        function setStatus(type, text) {
+            const dot = document.getElementById('statusDot');
+            const txt = document.getElementById('statusText');
+            dot.className = 'status-dot ' + type;
+            txt.textContent = text;
+        }
+
+        async function startFaceDetection() {
+            if (!isModelLoaded || stopDetectionLoop) return;
+            
+            try {
+                const detections = await faceapi.detectAllFaces(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.1 }))
+                    .withFaceLandmarks();
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                if (detections && detections.length > 0) {
+                    detections.forEach(det => {
+                        const box = det.detection.box;
+                        ctx.strokeStyle = '#1a73e8';
+                        ctx.lineWidth = 3;
+                        ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+                        const landmarks = det.landmarks;
+                        const pts = landmarks.positions;
+                        ctx.fillStyle = '#1a73e8';
+                        pts.forEach(pt => {
+                            ctx.beginPath();
+                            ctx.arc(pt.x, pt.y, 1.5, 0, Math.PI * 2);
+                            ctx.fill();
+                        });
+                    });
+
+                    document.getElementById('overlayInfo').style.display = 'block';
+                    document.getElementById('detectedName').textContent = `Phát hiện ${detections.length} khuôn mặt`;
+                    document.getElementById('detectedDetail').textContent = 'AI đang phân tích đặc trưng 128 chiều (FaceNet Embeddings)...';
+                } else {
+                    document.getElementById('overlayInfo').style.display = 'none';
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            } catch (err) {
+                console.warn('Face detection overlay err:', err);
+            }
+
+            // Schedule next frame with longer delay to free CPU for button clicks
+            if (!stopDetectionLoop) {
+                setTimeout(startFaceDetection, 2000);
+            }
+        }
+
+        async function loadReferenceFace() {
+            if (!FIREBASE_DB || !FIREBASE_TOKEN || !USERNAME) return;
+            try {
+                const res = await fetch(`${FIREBASE_DB}/face_references/${USERNAME}.json?auth=${FIREBASE_TOKEN}`);
+                const data = await res.json();
+                if (data && data.descriptor) {
+                    referenceDescriptor = new Float32Array(data.descriptor);
+                }
+            } catch (err) {
+                console.warn('No reference face found:', err);
+            }
+        }
+
+        async function registerFace() {
+            if (!isModelLoaded) return;
+            
+            // Stop background detection to free CPU
+            stopDetectionLoop = true;
+            await new Promise(r => setTimeout(r, 500));
+            
+            setStatus('loading', '📸 Đang chụp và phân tích khuôn mặt... Vui lòng đợi 5-10 giây.');
+            document.getElementById('btnRegister').disabled = true;
+            document.getElementById('btnAttendance').disabled = true;
+
+            try {
+                const detection = await faceapi.detectSingleFace(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.1 }))
+                    .withFaceLandmarks()
+                    .withFaceDescriptor();
+
+                if (!detection) {
+                    setStatus('error', '❌ Không phát hiện khuôn mặt. Ánh sáng đang quá tối hoặc hình ảnh bị mờ.');
+                    document.getElementById('btnRegister').disabled = false;
+                    document.getElementById('btnAttendance').disabled = false;
+                    return;
+                }
+
+                referenceDescriptor = detection.descriptor;
+
+                // Capture photo as base64
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = video.videoWidth;
+                tempCanvas.height = video.videoHeight;
+                tempCanvas.getContext('2d').drawImage(video, 0, 0);
+                const photoBase64 = tempCanvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+
+                // Save to Firebase
+                const payload = {
+                    descriptor: Array.from(referenceDescriptor),
+                    photo: photoBase64,
+                    fullname: FULLNAME,
+                    registered_at: new Date().toISOString()
+                };
+
+                await fetch(`${FIREBASE_DB}/face_references/${USERNAME}.json?auth=${FIREBASE_TOKEN}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                setStatus('success', '✅ Đăng ký khuôn mặt thành công! Bây giờ bạn có thể Điểm danh.');
+
+                // Notify WPF
+                if (window.chrome && window.chrome.webview) {
+                    window.chrome.webview.postMessage(JSON.stringify({
+                        type: 'face_registered',
+                        username: USERNAME
+                    }));
+                }
+
+            } catch (err) {
+                console.error(err);
+                setStatus('error', '❌ Lỗi đăng ký: ' + err.message);
+            }
+
+            document.getElementById('btnRegister').disabled = false;
+            document.getElementById('btnAttendance').disabled = false;
+            
+            // Resume background detection
+            stopDetectionLoop = false;
+            startFaceDetection();
+        }
+
+        async function checkAttendance() {
+            if (!isModelLoaded) return;
+            
+            if (!referenceDescriptor) {
+                setStatus('error', '⚠️ Bạn chưa đăng ký khuôn mặt. Hãy nhấn "Đăng ký khuôn mặt" trước!');
+                return;
+            }
+
+            // Stop background detection to free CPU
+            stopDetectionLoop = true;
+            await new Promise(r => setTimeout(r, 500));
+            
+            setStatus('loading', '🔍 Đang xác thực khuôn mặt bằng AI... Vui lòng đợi 5-10 giây.');
+            document.getElementById('btnAttendance').disabled = true;
+            document.getElementById('btnRegister').disabled = true;
+
+            try {
+                const detection = await faceapi.detectSingleFace(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.1 }))
+                    .withFaceLandmarks()
+                    .withFaceDescriptor();
+
+                if (!detection) {
+                    setStatus('error', '❌ Không phát hiện khuôn mặt. Ánh sáng đang quá tối hoặc hình ảnh bị mờ.');
+                    document.getElementById('btnAttendance').disabled = false;
+                    document.getElementById('btnRegister').disabled = false;
+                    return;
+                }
+
+                // Calculate euclidean distance (lower = more similar)
+                const distance = faceapi.euclideanDistance(referenceDescriptor, detection.descriptor);
+                const similarity = Math.max(0, Math.min(100, ((1 - distance / 1.2) * 100))).toFixed(1);
+                const threshold = 55; // 55% similarity = pass
+                const isMatch = parseFloat(similarity) >= threshold;
+
+                // Capture current photo
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = video.videoWidth;
+                tempCanvas.height = video.videoHeight;
+                tempCanvas.getContext('2d').drawImage(video, 0, 0);
+                const photoBase64 = tempCanvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+
+                // Show result
+                const resultCard = document.getElementById('resultCard');
+                resultCard.classList.add('show');
+
+                const scoreEl = document.getElementById('matchScore');
+                scoreEl.textContent = similarity + '%';
+                scoreEl.className = 'match-score ' + (parseFloat(similarity) >= 80 ? 'high' : parseFloat(similarity) >= threshold ? 'medium' : 'low');
+
+                document.getElementById('resultUsername').textContent = FULLNAME || USERNAME;
+                document.getElementById('resultTime').textContent = new Date().toLocaleString('vi-VN');
+
+                const verdictEl = document.getElementById('verdict');
+                if (isMatch) {
+                    verdictEl.className = 'verdict pass';
+                    verdictEl.textContent = '✅ XÁC THỰC THÀNH CÔNG — Đúng sinh viên ' + (FULLNAME || USERNAME);
+                    setStatus('success', '✅ Điểm danh thành công! Đã xác thực danh tính.');
+                } else {
+                    verdictEl.className = 'verdict fail';
+                    verdictEl.textContent = '❌ XÁC THỰC THẤT BẠI — Nghi ngờ điểm danh hộ!';
+                    setStatus('error', '❌ Khuôn mặt KHÔNG khớp! Nghi ngờ gian lận điểm danh hộ.');
+                }
+
+                // Save attendance record to Firebase
+                const record = {
+                    username: USERNAME,
+                    fullname: FULLNAME,
+                    similarity: parseFloat(similarity),
+                    is_match: isMatch,
+                    photo: photoBase64,
+                    timestamp: new Date().toISOString(),
+                    verdict: isMatch ? 'Có mặt (Xác thực thành công)' : 'Vắng mặt (Khuôn mặt không khớp / Điểm danh hộ)'
+                };
+
+                await fetch(`${FIREBASE_DB}/attendance/${USERNAME}/${Date.now()}.json?auth=${FIREBASE_TOKEN}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(record)
+                });
+
+                // Notify WPF
+                if (window.chrome && window.chrome.webview) {
+                    window.chrome.webview.postMessage(JSON.stringify({
+                        type: 'attendance_result',
+                        username: USERNAME,
+                        fullname: FULLNAME,
+                        similarity: parseFloat(similarity),
+                        is_match: isMatch,
+                        timestamp: record.timestamp
+                    }));
+                }
+
+            } catch (err) {
+                console.error(err);
+                setStatus('error', '❌ Lỗi xác thực: ' + err.message);
+            }
+
+            document.getElementById('btnAttendance').disabled = false;
+            document.getElementById('btnRegister').disabled = false;
+            
+            // Resume background detection
+            stopDetectionLoop = false;
+            startFaceDetection();
+        }
+
+        // Init on load
+        init();
+    </script>
+</body>
+</html>

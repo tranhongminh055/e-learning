@@ -1,0 +1,6 @@
+*.sql
+bin/
+obj/
+PublishOutput/
+.vs/
+*.zip

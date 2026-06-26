@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Student Camera</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+        import { getAuth, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-database.js";
+
+        // Thay thông tin này bằng cấu hình Firebase của bạn
+        const firebaseConfig = {
+            apiKey: "AIzaSyAUUfwKLCFt0Ksp2Y6GLICl63eXspZ2YTs",
+            authDomain: "vibio-8391c.firebaseapp.com",
+            projectId: "vibio-8391c",
+            storageBucket: "vibio-8391c.firebasestorage.app",
+            messagingSenderId: "698117206135",
+            appId: "1:698117206135:web:adb4363661309b91c71672",
+            measurementId: "G-ND2LNGQHJ0",
+            databaseURL: "https://vibio-8391c-default-rtdb.firebaseio.com"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const auth = getAuth(app);
+        
+        window.db = db;
+        window.auth = auth;
+        window.ref = ref;
+        window.set = set;
+    </script>
+</head>
+<body>
+    <video id="localVideo" autoplay muted playsinline style="width:1px;height:1px;"></video>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const username = params.get('username') || 'unknown';
+
+        let localStream = null;
+        let peer = null;
+
+        async function start() {
+            try {
+                // Request camera access
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 320, height: 240, frameRate: 10 },
+                    audio: false
+                });
+                document.getElementById('localVideo').srcObject = localStream;
+                console.log('[StudentCamera] Camera stream acquired for', username);
+            } catch (err) {
+                console.error('[StudentCamera] Failed to get camera:', err);
+                
+                // Tạo một luồng video ảo bằng Canvas để báo không có camera (đảm bảo PeerJS luôn hoạt động)
+                const canvas = document.createElement('canvas');
+                canvas.width = 320;
+                canvas.height = 240;
+                const ctx = canvas.getContext('2d');
+                
+                setInterval(() => {
+                    ctx.fillStyle = '#2c3e50';
+                    ctx.fillRect(0, 0, 320, 240);
+                    ctx.fillStyle = '#e74c3c';
+                    ctx.font = '20px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Không có Camera', 160, 110);
+                    ctx.fillStyle = '#bdc3c7';
+                    ctx.font = '14px Arial';
+                    ctx.fillText(new Date().toLocaleTimeString(), 160, 140);
+                }, 1000);
+
+                localStream = canvas.captureStream(10);
+            }
+
+            // Create PeerJS peer
+            peer = new Peer();
+
+            peer.on('open', async (peerId) => {
+                console.log('[StudentCamera] Peer opened with ID:', peerId);
+
+                // Đợi Firebase load
+                const checkFirebase = setInterval(async () => {
+                    if (window.db) {
+                        clearInterval(checkFirebase);
+                        try {
+                            const peerRef = window.ref(window.db, `active_peers/${username}/camera`);
+                            await window.set(peerRef, {
+                                peer_id: peerId,
+                                timestamp: Math.floor(Date.now() / 1000)
+                            });
+                            console.log('[StudentCamera] Peer registered on Firebase RTDB');
+                        } catch (err) {
+                            console.error('[StudentCamera] Failed to register peer on Firebase:', err);
+                        }
+                    }
+                }, 1000);
+            });
+
+            // Answer incoming calls from the instructor
+            peer.on('call', (call) => {
+                console.log('[StudentCamera] Incoming call from instructor');
+                if (localStream) {
+                    call.answer(localStream);
+                } else {
+                    // Answer with empty stream if no camera
+                    call.answer(new MediaStream());
+                }
+            });
+
+            peer.on('error', (err) => {
+                console.error('[StudentCamera] Peer error:', err);
+                // Try to reconnect after 5 seconds
+                setTimeout(() => {
+                    if (peer && peer.destroyed) {
+                        start();
+                    }
+                }, 5000);
+            });
+
+            peer.on('disconnected', () => {
+                console.log('[StudentCamera] Peer disconnected, reconnecting...');
+                if (peer && !peer.destroyed) {
+                    peer.reconnect();
+                }
+            });
+
+            // Keep-alive
+            setInterval(async () => {
+                if (peer && peer.id && !peer.destroyed && window.db) {
+                    try {
+                        const peerRef = window.ref(window.db, `active_peers/${username}/camera`);
+                        await window.set(peerRef, {
+                            peer_id: peer.id,
+                            timestamp: Math.floor(Date.now() / 1000)
+                        });
+                        console.log('[StudentCamera] Keep-alive ping sent to Firebase');
+                    } catch (err) {
+                        console.error('[StudentCamera] Keep-alive failed:', err);
+                    }
+                }
+            }, 30000);
+        }
+
+        // Start immediately
+        start();
+    </script>
+</body>
+</html>
