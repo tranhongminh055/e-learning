@@ -97,9 +97,9 @@ namespace StudentMonitor
 
                 return (true, "Đăng ký thành công!");
             }
-            catch (HttpRequestException)
+            catch (HttpRequestException ex)
             {
-                return (false, "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.");
+                return (false, $"Lỗi mạng hoặc kết nối máy chủ: {ex.Message}");
             }
             catch (Exception ex)
             {
@@ -145,8 +145,19 @@ namespace StudentMonitor
                 CurrentUserId = uid;
 
                 // Lấy profile từ Realtime Database
-                var profileResponse = await _http.GetStringAsync(
-                    $"{DatabaseUrl}/users/{uid}.json?auth={IdToken}");
+                var getProfileResponse = await _http.GetAsync($"{DatabaseUrl}/users/{uid}.json?auth={IdToken}");
+                var profileResponse = await getProfileResponse.Content.ReadAsStringAsync();
+                
+                if (!getProfileResponse.IsSuccessStatusCode)
+                {
+                    return (false, $"Lỗi phân quyền từ Firebase (Status: {getProfileResponse.StatusCode}).", "", "");
+                }
+                
+                if (profileResponse == "null" || string.IsNullOrWhiteSpace(profileResponse))
+                {
+                    return (false, "Profile không tồn tại trên cơ sở dữ liệu Firebase.", "", "");
+                }
+
                 var profile = JObject.Parse(profileResponse);
 
                 CurrentUsername = profile["username"]?.ToString() ?? "";
@@ -160,9 +171,9 @@ namespace StudentMonitor
 
                 return (true, "Đăng nhập thành công!", CurrentRole, CurrentFullName);
             }
-            catch (HttpRequestException)
+            catch (HttpRequestException ex)
             {
-                return (false, "Không thể kết nối đến máy chủ.", "", "");
+                return (false, $"Lỗi mạng hoặc kết nối máy chủ: {ex.Message}", "", "");
             }
             catch (Exception ex)
             {
